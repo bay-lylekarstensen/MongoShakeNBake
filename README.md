@@ -1,132 +1,82 @@
-This is a brief introduction of Mongo-Shake, please visit [english wiki](https://github.com/aliyun/mongo-shake/wiki/MongoShake-Detailed-Documentation) or [chinese wiki](https://yq.aliyun.com/articles/603329) if you want to see more details including architecture, data flow, performance test, business showcase and so on.
+# Mongo-Shake-N-Bake
 
-*  [English document](https://github.com/aliyun/mongo-shake/wiki/MongoShake-Detailed-Documentation)
-*  [中文架构介绍文档](https://yq.aliyun.com/articles/603329)
-*  [第一次使用，如何配置](https://github.com/alibaba/MongoShake/wiki/%E7%AC%AC%E4%B8%80%E6%AC%A1%E4%BD%BF%E7%94%A8%EF%BC%8C%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E9%85%8D%E7%BD%AE%EF%BC%9F)
-*  [Tutorial](https://github.com/alibaba/MongoShake/wiki/tutorial-about-how-to-set-up)
-*  [FAQ document](https://github.com/aliyun/mongo-shake/wiki/FAQ)
-*  [MongoShake最佳实践](https://yq.aliyun.com/articles/719704)
-*  [Performance test document](https://github.com/aliyun/mongo-shake/wiki/MongoShake-Performance-Document)
+## Fork Disclaimer
+Mongo-Shake-N-Bake is an independent fork of Alibaba's Mongo-Shake.
 
-# Mongo-Shake
----
-Mongo-Shake is developed and maintained by Nosql Team in Alibaba-Cloud.<br>
-Mongo-Shake is a universal platform for services based on MongoDB's oplog. It fetches oplog from source mongo database, and replays in the target mongo database or sends to other ends in different tunnels. If the target side is mongo database which means replay oplog directly, it's like a syncing tool that used to copy data from source MongoDB to another MongoDB to build redundant replication or active-active replication. Except for this direct way, there are others tunnel types such like rpc, file, tcp, kafka. Receivers wrote by users must define their own interfaces to connecting to these tunnels respectively. Users can also define there own tunnel type which is pluggable. If connecting to a third-party message middleware like kafka, the consumer can get the subscriber data in an asynchronous way in pub/sub module flexibly.
-Here comes general data flow, <br>
-![pic1](resources/dataflow.png)<br>
-The source can be either single mongod, replica set or sharding while target can be mongod or mongos. If the source is replica set, we suggest fetching data from secondary/hidden to ease the primary pressure. If the source is sharding, every shard should connect to Mongo-Shake. There can be several mongos on the target side to keep high availability, and different data will be hashed and written to different mongos.
+This fork was created specifically to fix and harden mongodb+srv connection support for cloud hosting providers that rely on SRV connection strings for replica set discovery. It also adds a safe config test mode so operators can validate settings before running replication.
 
-# Parallel Replication
----
-There are three options for parallel replication which we call 'shad\_key': __id__, __collection__ and __auto__. __id__ means the concurrency granularity is document while __collection__ means the granularity is collection/table. __auto__ option is decided by if there has unique index of any collection, it will change to __collection__ with unique index exist otherwise __id__.
+This software is provided AS-IS, without warranty of any kind.
 
-# High Availability
----
-Mongo-Shake periodically persistent its context into register center which by default is the source database. Currently, the context is checkpoint which marks the position of successfully replay oplog.<br>
-Hypervisor mechanism is also supported so that it will restart immediately when dies(`master_quorum` in configuration).
+Upstream project: https://github.com/alibaba/MongoShake
 
-# Filter
----
-Support filtering database and collection namespace with whitelist and blacklist.
+## Why This Fork Exists
+The primary focus of Mongo-Shake-N-Bake is reliable SRV URI support across the collector configuration paths used in real-world managed MongoDB environments, especially cloud providers where `mongodb+srv://` is the standard way to reach replica sets.
 
-# DDL Syncing
----
-Starting with version 1.5, MongoShake supports syncing DDL by using global barrier. Once fetching DDL oplog, MongoShake adds a barrier so that all the belowing oplogs waitting in the queue until this oplog is written into the target MongoDB or tunnel and the checkpoint is updated. Currently, DDL is only support for ReplicaSet on the source side(target side can be RelicaSet or Sharding), we will support Sharding in the later version.<br>
-![ddl](resources/ddl_support.png)<br>
+In addition, this fork improves operator safety with a preflight config test mode.
 
-# Global ID
----
-In Aliyun internal version, global id(also called gid) is supported which marks the id of the database. It can be used to avoid loop when two databases become backup of each other. Mongo-Shake only fetches the oplogs equal to source database id, all the oplogs are be fetched when no gid gave. For current opensource version, it's not supported limited by the modification of MongoDB kernel.<br>
-If you want to build active-active replication without `gid` supported, please visit [FAQ document](https://github.com/alibaba/MongoShake/wiki/FAQ) to see more details.<br>
+## What Is Different From Upstream
+1. Primary enhancement: robust `mongodb+srv://` handling for:
+   - source URLs (`mongo_urls`)
+   - direct tunnel target URL (`tunnel.address` when `tunnel=direct`)
+   - checkpoint storage URL (`checkpoint.storage.url`)
+2. Critical bugfix: URL parsing logic was fixed to prevent mangling of query parameters in MongoDB connection strings.
+3. Operational enhancement: `-check-config` mode to validate config and connectivity without starting replication.
+4. Fork-owned issue flow: bugs and feature requests should be opened in this fork's issue tracker, not upstream.
 
-# Tunnel
----
-As mentioned above, we support several tunnel types such like: rcp, tcp, file, kafka, mock and direct. __rpc__ and __tcp__ means connecting to receiver synchronously by net/rcp and TCP respectively; __file__ means writing output into file; __kafka__ is an asynchronous way of sending the message; __mock__ is used by testing that throws away all the data; __direct__ means writing into target MongoDB directly. Users can also add or modify current tunnel type.<br>
-We offer receiver to connect to different tunnels like: rpc, tcp, file, mock and kafka. Please visit [FAQ document](https://github.com/aliyun/mongo-shake/wiki/FAQ) to see more details.
+## Quick Start
+Build and run:
 
-# Compressor
----
-Gzip, zlib, deflate compressor are supported in batched oplogs before sending.
+```bash
+git clone https://github.com/bay-lylekarstensen/MongoShakeNBake.git
+cd MongoShakeNBake
+make
+./bin/collector -conf=conf/collector.conf
+```
 
-# Monitor & Debug
----
-User can monitor or debug Mongo-Shake through RESTful API, please visit [FAQ document](https://github.com/aliyun/mongo-shake/wiki/FAQ) to see more details.
+Run directly with Go (no `make` required):
 
-# Other Details
----
-Mongo-Shake uses [go-driver](github.com/mongodb/mongo-go-driver)  to fetch oplogs from source MongoDB which is later than the given timestamp in configuration. Then, it filters oplogs based on whitelist, blacklist, and gid. All the oplogs will be transferred at least once which is acceptable because of idempotent of oplog DML. We use __seq__ and __ack__ to make sure the package is received which is similar to the sequence and acknowledgment numbers in TCP.<br>
-The oplogs are batched together in the handling pipeline.<br>
-Users can adjust the worker concurrency and executor concurrency according to the different environment.<br>
-Please see the detail documents listed at the beginning if you want to see more details.<br>
+```bash
+git clone https://github.com/bay-lylekarstensen/MongoShakeNBake.git
+cd MongoShakeNBake
+go run ./cmd/collector -conf=conf/collector.conf
+```
 
-# Code branch rules
-version rules: a.b.c.
+## Test Your Config Before Running
+Validate configuration and connectivity without starting sync:
 
-*  a: major version
-*  b: minor version. **even number means stable version**. e.g. 1.2.x, 1.4.x, 2.0.x are stable while 1.5.x, 2.1.x aren't.
-*  c: bugfix version
+```bash
+./bin/collector -conf=conf/collector.conf -check-config
+```
 
-| branch name | rules |
-| - | :- |
-| master | master branch, do not allowed push code. store the latest stable version. |
-| **develop**(main branch) | develop branch. all the bellowing branches fork from this. |
-| feature-\* | new feature branch. forked from develop branch and then merge back after finish developing, testing, and code review. |
-| bugfix-\* | bugfix branch. forked from develop branch and then merge back after finish developing, testing, and code review. |
-| improve-\* | improvement branch. forked from develop branch and then merge back after finish developing, testing, and code review.  |
+If running directly with Go:
 
-tag rules:
-add tag when releasing: "release-v{version}-{date}". for example: "release-v1.0.2-20180628"
+```bash
+go run ./cmd/collector -conf=conf/collector.conf -check-config
+```
 
-# Usage
----
-Run `./bin/collector.darwin` or `collector.linux` which is built in OSX and Linux respectively.
+This preflight mode verifies core connectivity settings and exits.
 
-MongoShake supports both `mongodb://` and `mongodb+srv://` connection strings for source/target/checkpoint MongoDB URLs.
+## Configuration Notes
+Mongo-Shake-N-Bake supports both `mongodb://` and `mongodb+srv://` connection strings.
 
-Or you can build mongo-shake yourself according to the following steps(go version needs >= 15.10):
+For direct writes, ensure `tunnel=direct` and `tunnel.address` are set correctly.
 
-*  git clone https://github.com/alibaba/MongoShake.git
-*  cd MongoShake
-*  make
-*  ./bin/collector -conf=conf/collector.conf
+## Reporting Issues
+Please report issues for this fork here:
 
-You can validate configuration and connectivity without starting replication by using `-check-config`:
+https://github.com/bay-lylekarstensen/MongoShakeNBake/issues
 
-*  ./bin/collector -conf=conf/collector.conf -check-config
+Do not open fork-specific issues in the upstream Alibaba repository.
 
-This mode verifies core connectivity settings (including source URLs, `tunnel.address` when `tunnel=direct`, and `checkpoint.storage.url`) and then exits.
+## Contributing
+Contributions are welcome in this fork. Open a pull request against this repository.
 
-please note: user must modify collector.conf first to match needs. You can also use \"start.sh\" script which supports hypervisor mechanism in Linux OS only.
+## Credits
+Mongo-Shake-N-Bake is built on top of Mongo-Shake, originally developed and maintained by the Alibaba Cloud NoSQL team and community contributors.
 
-# Shake series tool
----
-We also provide some tools for synchronization in Shake series.<br>
+Thank you to the original maintainers and contributors for creating and open-sourcing Mongo-Shake.
 
-* [MongoShake](https://github.com/aliyun/MongoShake): mongodb data synchronization tool.
-* [RedisShake](https://github.com/aliyun/RedisShake): redis data synchronization tool.
-* [RedisFullCheck](https://github.com/aliyun/RedisFullCheck): redis data synchronization verification tool.
+## License
+This fork continues to use the original MIT license.
 
-# Thanks
----
-| Username |         Mail          |
-| :------: |:---------------------:|
-| lydarkforest | linyunads1379@163.com |
-| diggzhang |  diggzhang@gmail.com  |
-| ManleyLiu |    daywbdb@qq.com     |
-| hustchensi |   chensi_04@126.com   |
-| HelloCodeMing | huanmingwong@163.com  |
-| cocoakekeyu | cocoakekeyu@gmail.com |
-| lixj1103 |   244769542@qq.com    |
-| xzshinan | shinan@gongchang.com  |
-| tzjavadmg |   codyzeng@163.com    |
-| dx8439 |   171390022@qq.com    |
-| monkeyWie |                       |
-| raydy.yan |  yajuyan@hotmail.com  |
-| loda507 |   741536172@qq.com    |
-| 骑着蜗牛的兔子 |   348978774@qq.com    |
-| lijwww |   2530877879@qq.com   |
-| nanmu42 |      i@nanmu.me       |
-| zemul | zemiaozhou@gmail.com  |
-| renheqiang |                       |
-| dobesv |   dobesv@gmail.com    |
- | pengzhenyi2015 | 503282373@qq.com |
+See LICENSE for the full license text. Do not remove or replace upstream copyright/license notices.
