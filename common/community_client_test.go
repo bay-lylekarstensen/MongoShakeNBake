@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,80 +132,58 @@ func TestCommonFunctions(t *testing.T) {
 	}
 }
 
-func TestEncodeMongoURI(t *testing.T) {
+func TestValidateMongoURI(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
-		err      string
+		input string
+		err   string
 	}{
 		{
-			input:    "mongodb://root:password001@localhost:27017/admin",
-			expected: "mongodb://root:password001@localhost:27017/admin",
-			err:      "",
+			input: "mongodb://root:password001@localhost:27017/admin",
+			err:   "",
 		},
 		{
-			input:    "mongodb://root:1234@abcd@localhost:27017/admin",
-			expected: "mongodb://root:1234%40abcd@localhost:27017/admin",
-			err:      "",
+			input: "mongodb://root:1234@abcd@localhost:27017/admin",
+			err:   "URL has invalid characters and must be URL encoded",
 		},
 		{
-			input:    "mongodb://root:dUM3!k&TdofokP0yl1@dds-xxx1.mongodb.rds.aliyuncs.com:3717,dds-xxx2.mongodb.rds.aliyuncs.com:3717",
-			expected: "mongodb://root:dUM3%21k&TdofokP0yl1@dds-xxx1.mongodb.rds.aliyuncs.com:3717,dds-xxx2.mongodb.rds.aliyuncs.com:3717",
-			err:      "",
+			input: "mongodb://root:dUM3%21k%26TdofokP0yl1@dds-xxx1.mongodb.rds.aliyuncs.com:3717,dds-xxx2.mongodb.rds.aliyuncs.com:3717",
+			err:   "",
 		},
 		{
-			input:    "mongodb://root_special_char:MongoDB@%()!#&-=@localhost:27017/admin",
-			expected: "mongodb://root_special_char:MongoDB%40%25%28%29%21%23&-=@localhost:27017/admin",
-			err:      "",
+			input: "mongodb+srv://user:pass@example.mongodb.net/admin?tls=true&appName=mongoshake",
+			err:   "",
 		},
 		{
-			input:    "mongodb://root_special_char1:~!@#$^&*()_-=@localhost:27017/admin",
-			expected: "mongodb://root_special_char1:~%21%40%23$%5E&%2A%28%29_-=@localhost:27017/admin",
-			err:      "",
+			input: "mongodb://user:pass@localhost/db?tls=true&app-name=mongoshake",
+			err:   "",
 		},
 		{
-			input:    "mongodb://user:pass@localhost/db",
-			expected: "mongodb://user:pass@localhost/db",
-			err:      "",
+			input: "mongodb+srv://user:pass@example.mongodb.net/admin?tls=true&authSource=admin@appName=mongoshake",
+			err:   "query has raw '@'",
 		},
 		{
-			input:    "mongodb://user:pass:@localhost/db",
-			expected: "mongodb://user:pass%3A@localhost/db",
-			err:      "",
-		},
-		{
-			input:    "mongodb://user:passwd@localhost:27017",
-			expected: "mongodb://user:passwd@localhost:27017",
-			err:      "",
-		},
-		{
-			input:    "mongodb://localhost:27017,localhost:27018",
-			expected: "mongodb://localhost:27017,localhost:27018",
-			err:      "",
+			input: "mongodb://user:pass@localhost/db?appName=team%40prod",
+			err:   "",
 		},
 		{
 			input: "invalid://user:pass@host/db",
-			err:   "unsupported scheme: invalid",
+			err:   "invalid MongoDB URL",
 		},
 		{
-			input: "mongodb://user@host/db",
-			err:   "missing ':' in username:password",
-		},
-		{
-			input: "mongodb://:@host/db",
-			err:   "missing username or password in username:password",
+			input: "mongodb://user:pa@ss@localhost/db",
+			err:   "URL has invalid characters and must be URL encoded",
 		},
 	}
 
 	for _, tt := range tests {
-		encoded, err := EncodeMongoURI(tt.input)
+		err := ValidateMongoURI(tt.input)
 		if tt.err != "" {
-			if err == nil || err.Error() != tt.err {
-				t.Errorf("expected error %q for %q, got %v", tt.err, tt.input, err)
+			if err == nil || !strings.Contains(err.Error(), tt.err) {
+				t.Errorf("expected error containing %q for %q, got %v", tt.err, tt.input, err)
 			}
 		} else {
-			if encoded != tt.expected {
-				t.Errorf("expected %q for %q, got %q", tt.expected, tt.input, encoded)
+			if err != nil {
+				t.Errorf("expected valid URI for %q, got error %v", tt.input, err)
 			}
 		}
 	}

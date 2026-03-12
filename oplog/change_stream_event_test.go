@@ -78,11 +78,10 @@ func marshalData(input bson.M) bson.Raw {
 
 // newMongoClient only used in unit test
 func newMongoClient(url string) (*mongo.Client, error) {
-	encodedURL, err := utils.EncodeMongoURI(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode MongoDB URL: %v", err)
+	if err := utils.ValidateMongoURI(url); err != nil {
+		return nil, err
 	}
-	clientOps := options.Client().ApplyURI(encodedURL)
+	clientOps := options.Client().ApplyURI(url)
 
 	client, err := mongo.NewClient(clientOps)
 	if err != nil {

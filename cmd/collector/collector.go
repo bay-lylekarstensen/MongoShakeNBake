@@ -34,6 +34,7 @@ func main() {
 	verbose := flag.Int("verbose", 0, "where log goes to: 0 - file，1 - file+stdout，2 - stdout")
 	GCPercent := flag.Int("GCPercent", 100, "golang GC percent")
 	version := flag.Bool("version", false, "show version")
+	checkConfig := flag.Bool("check-config", false, "validate config and connectivity, then exit")
 	flag.Parse()
 
 	if *configuration == "" || *version == true {
@@ -74,6 +75,13 @@ func main() {
 			conf.Options.LogDirectory, conf.Options.LogFileName, conf.Options.LogLevel)
 	}
 	LOG.Info("MongoDB Version Source[%v] Target[%v]", conf.Options.SourceDBVersion, conf.Options.TargetDBVersion)
+
+	if *checkConfig {
+		msg := "config check succeeded. validated mongo_urls, tunnel.address (when tunnel=direct), and checkpoint.storage.url"
+		fmt.Println(msg)
+		LOG.Info(msg)
+		return
+	}
 
 	conf.Options.Version = utils.BRANCH
 

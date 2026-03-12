@@ -305,6 +305,19 @@ func checkConnection() error {
 		}
 	}
 
+	// check checkpoint.storage.url
+	checkpointURL, err := getCheckpointStorageURLForCheck()
+	if err != nil {
+		return err
+	}
+	_, err = utils.NewMongoCommunityConn(checkpointURL, utils.VarMongoConnectModeSecondaryPreferred, true,
+		utils.ReadWriteConcernDefault, utils.ReadWriteConcernDefault,
+		conf.Options.CheckpointStorageUrlMongoSslRootCaFile)
+	if err != nil {
+		return fmt.Errorf("connect checkpoint storage mongodb[%v] failed[%v]",
+			utils.BlockMongoUrlPassword(checkpointURL, "***"), err)
+	}
+
 	// check mongo_cs_url
 	if conf.Options.MongoCsUrl != "" {
 		_, err := utils.NewMongoCommunityConn(conf.Options.MongoCsUrl, utils.VarMongoConnectModeSecondaryPreferred,
@@ -353,6 +366,22 @@ func checkConnection() error {
 	}
 
 	return nil
+}
+
+func getCheckpointStorageURLForCheck() (string, error) {
+	if conf.Options.CheckpointStorageUrl != "" {
+		return conf.Options.CheckpointStorageUrl, nil
+	}
+
+	if len(conf.Options.MongoUrls) == 1 {
+		return conf.Options.MongoUrls[0], nil
+	}
+
+	if len(conf.Options.MongoSUrl) > 0 {
+		return conf.Options.MongoSUrl, nil
+	}
+
+	return "", fmt.Errorf("checkpoint.storage.url should be given when source is sharding")
 }
 
 func checkConflict() error {

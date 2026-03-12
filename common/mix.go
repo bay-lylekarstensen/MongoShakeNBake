@@ -162,41 +162,10 @@ func WritePidById(dir, id string) bool {
 }
 
 func Welcome() {
-	welcome :=
-		`______________________________
-\                             \           _         ______ |
- \                             \        /   \___-=O'/|O'/__|
-  \  MongoShake, Here we go !!  \_______\          / | /    )
-  /                             /        '/-==__ _/__|/__=-|  -GM
- /        Alibaba Cloud        /         *             \ | |
-/                             /                        (o)
-------------------------------
-`
 	startMsg := "if you have any problem, please visit https://github.com/alibaba/MongoShake/wiki/FAQ"
-	_ = LOG.Warn(fmt.Sprintf("\n%s\n%s\n", welcome, startMsg))
+	_ = LOG.Warn(fmt.Sprintf("\nMongoShake starting\n%s\n", startMsg))
 }
 
 func Goodbye() {
-	goodbye := `
-                ##### | #####
-Oh we finish ? # _ _ #|# _ _ #
-               #      |      #
-         |       ############
-                     # #
-  |                  # #
-                    #   #
-         |     |    #   #      |        |
-  |  |             #     #               |
-         | |   |   # .-. #         |
-                   #( O )#    |    |     |
-  |  ################. .###############  |
-   ##  _ _|____|     ###     |_ __| _  ##
-  #  |                                |  #
-  #  |    |    |    |   |    |    |   |  #
-   ######################################
-                   #     #
-                    #####
-`
-
-	_ = LOG.Warn(goodbye)
+	LOG.Info("MongoShake finished")
 }

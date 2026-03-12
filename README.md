@@ -81,12 +81,20 @@ add tag when releasing: "release-v{version}-{date}". for example: "release-v1.0.
 ---
 Run `./bin/collector.darwin` or `collector.linux` which is built in OSX and Linux respectively.
 
+MongoShake supports both `mongodb://` and `mongodb+srv://` connection strings for source/target/checkpoint MongoDB URLs.
+
 Or you can build mongo-shake yourself according to the following steps(go version needs >= 15.10):
 
 *  git clone https://github.com/alibaba/MongoShake.git
 *  cd MongoShake
 *  make
-*  ./bin/collector -conf=conf/collector.conf 
+*  ./bin/collector -conf=conf/collector.conf
+
+You can validate configuration and connectivity without starting replication by using `-check-config`:
+
+*  ./bin/collector -conf=conf/collector.conf -check-config
+
+This mode verifies core connectivity settings (including source URLs, `tunnel.address` when `tunnel=direct`, and `checkpoint.storage.url`) and then exits.
 
 please note: user must modify collector.conf first to match needs. You can also use \"start.sh\" script which supports hypervisor mechanism in Linux OS only.
 

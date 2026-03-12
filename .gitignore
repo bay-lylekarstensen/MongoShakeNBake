@@ -27,3 +27,4 @@ bin/
 /cmd/receiver/receiver
 conf/
 common/123.pid
+logs/
