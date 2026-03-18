@@ -42,22 +42,12 @@ func main() {
 		panic(Exit{0})
 	}
 
-	var file *os.File
-	if file, err = os.Open(*configuration); err != nil {
-		crash(fmt.Sprintf("Configure file open failed. %v", err), -1)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
 	// read fcv and do comparison
 	if _, err := conf.CheckFcv(*configuration, utils.FcvConfiguration.FeatureCompatibleVersion); err != nil {
 		crash(err.Error(), -5)
 	}
 
-	configure := nimo.NewConfigLoader(file)
-	configure.SetDateFormat(utils.GolangSecurityTime)
-	if err := configure.Load(&conf.Options); err != nil {
+	if err := utils.LoadConfigWithEnv(*configuration, &conf.Options); err != nil {
 		crash(fmt.Sprintf("Configure file %s parse failed. %v", *configuration, err), -2)
 	}
 
@@ -78,8 +68,15 @@ func main() {
 
 	if *checkConfig {
 		msg := "config check succeeded. validated mongo_urls, tunnel.address (when tunnel=direct), and checkpoint.storage.url"
+		safe := conf.GetSafeOptions()
 		fmt.Println(msg)
+		fmt.Printf("mongo_urls: %v\n", safe.MongoUrls)
+		fmt.Printf("tunnel.address: %v\n", safe.TunnelAddress)
+		fmt.Printf("checkpoint.storage.url: %s\n", safe.CheckpointStorageUrl)
 		LOG.Info(msg)
+		LOG.Info("check-config redacted mongo_urls: %v", safe.MongoUrls)
+		LOG.Info("check-config redacted tunnel.address: %v", safe.TunnelAddress)
+		LOG.Info("check-config redacted checkpoint.storage.url: %s", safe.CheckpointStorageUrl)
 		return
 	}
 

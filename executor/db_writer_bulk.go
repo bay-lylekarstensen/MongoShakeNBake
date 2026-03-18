@@ -64,14 +64,27 @@ func (bw *BulkWriter) doInsert(database, collection string, metadata bson.E, opl
 
 func (bw *BulkWriter) doUpdateOnInsert(database, collection string, metadata bson.E, oplogs []*OplogRecord, upsert bool) error {
 	var models []mongo.WriteModel
+	replaceMode := conf.Options.IncrSyncExecutorInsertOnDupUpdateMode == utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	mode := utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+	if replaceMode {
+		mode = utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	}
+	LOG.Info("Duplicate resolution start. mode[%s] upsert[%v] ns[%s.%s] docs[%d]", mode, upsert, database, collection, len(oplogs))
 
 	for _, log := range oplogs {
 		newObject := log.original.partialLog.Object
 		if upsert && len(log.original.partialLog.DocumentKey) > 0 {
-
-			models = append(models, mongo.NewUpdateOneModel().
-				SetFilter(log.original.partialLog.DocumentKey).
-				SetUpdate(bson.D{{"$set", newObject}}).SetUpsert(true))
+			if replaceMode {
+				models = append(models, mongo.NewReplaceOneModel().
+					SetFilter(log.original.partialLog.DocumentKey).
+					SetReplacement(newObject).
+					SetUpsert(true))
+			} else {
+				models = append(models, mongo.NewUpdateOneModel().
+					SetFilter(log.original.partialLog.DocumentKey).
+					SetUpdate(bson.D{{"$set", newObject}}).
+					SetUpsert(true))
+			}
 		} else {
 			//if upsert {
 			//	_ = LOG.Warn("doUpdateOnInsert runs upsert but lack documentKey: %v", log.original.partialLog)
@@ -79,13 +92,23 @@ func (bw *BulkWriter) doUpdateOnInsert(database, collection string, metadata bso
 			// insert must have _id
 			if id := oplog.GetKey(log.original.partialLog.Object, ""); id != nil {
 
-				model := mongo.NewUpdateOneModel().
-					SetFilter(bson.D{{"_id", id}}).
-					SetUpdate(bson.D{{"$set", newObject}})
-				if upsert {
-					model.SetUpsert(true)
+				if replaceMode {
+					model := mongo.NewReplaceOneModel().
+						SetFilter(bson.D{{"_id", id}}).
+						SetReplacement(newObject)
+					if upsert {
+						model.SetUpsert(true)
+					}
+					models = append(models, model)
+				} else {
+					model := mongo.NewUpdateOneModel().
+						SetFilter(bson.D{{"_id", id}}).
+						SetUpdate(bson.D{{"$set", newObject}})
+					if upsert {
+						model.SetUpsert(true)
+					}
+					models = append(models, model)
 				}
-				models = append(models, model)
 			} else {
 				_ = LOG.Warn("Insert on duplicated update _id look up failed. %v", log)
 			}
@@ -125,6 +148,7 @@ func (bw *BulkWriter) doUpdateOnInsert(database, collection string, metadata bso
 		_ = LOG.Error("doUpdateOnInsert run upsert/update[%v] failed[%v]", upsert, err)
 		return err
 	}
+	LOG.Info("Duplicate resolution done. mode[%s] upsert[%v] ns[%s.%s] resolved[%d]", mode, upsert, database, collection, len(models))
 	return nil
 }
 

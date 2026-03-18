@@ -72,12 +72,22 @@ func (cw *CommandWriter) doUpdateOnInsert(database, collection string, metadata 
 	upsert bool) error {
 
 	var updates []bson.D
+	replaceMode := conf.Options.IncrSyncExecutorInsertOnDupUpdateMode == utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	mode := utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+	if replaceMode {
+		mode = utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	}
+	LOG.Info("Duplicate resolution start. mode[%s] upsert[%v] ns[%s.%s] docs[%d]", mode, upsert, database, collection, len(oplogs))
 	for _, log := range oplogs {
 		// insert must have _id
 		if id := oplog.GetKey(log.original.partialLog.Object, ""); id != nil {
+			u := interface{}(log.original.partialLog.Object)
+			if !replaceMode {
+				u = bson.D{{"$set", log.original.partialLog.Object}}
+			}
 			updates = append(updates, bson.D{
 				{"q", bson.M{"_id": id}},
-				{"u", log.original.partialLog.Object},
+				{"u", u},
 				{"upsert", upsert},
 				{"multi", false},
 			})
@@ -102,6 +112,7 @@ func (cw *CommandWriter) doUpdateOnInsert(database, collection string, metadata 
 		updateCmd = append(updateCmd, metadata)
 	}
 	if err = cw.conn.Client.Database(database).RunCommand(context.Background(), updateCmd).Err(); err == nil {
+		LOG.Info("Duplicate resolution done. mode[%s] upsert[%v] ns[%s.%s] resolved[%d]", mode, upsert, database, collection, len(updates))
 		return nil
 	}
 

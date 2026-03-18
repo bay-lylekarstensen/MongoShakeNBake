@@ -80,6 +80,13 @@ func (sw *SingleWriter) doInsert(database, collection string, metadata bson.E, o
 }
 
 func (sw *SingleWriter) doUpdateOnInsert(database, collection string, metadata bson.E, oplogs []*OplogRecord, upsert bool) error {
+	replaceMode := conf.Options.IncrSyncExecutorInsertOnDupUpdateMode == utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	mode := utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+	if replaceMode {
+		mode = utils.VarSyncExecutorInsertOnDupUpdateModeReplace
+	}
+	LOG.Info("Duplicate resolution start. mode[%s] upsert[%v] ns[%s.%s] docs[%d]", mode, upsert, database, collection, len(oplogs))
+
 	type pair struct {
 		id    interface{}
 		data  bson.D
@@ -106,15 +113,26 @@ func (sw *SingleWriter) doUpdateOnInsert(database, collection string, metadata b
 	}
 
 	collectionHandle := sw.conn.Client.Database(database).Collection(collection)
+	resolved := 0
 	if upsert {
 		for _, update := range updates {
+			var err error
+			var res *mongo.UpdateResult
 
-			opts := options.Update().SetUpsert(true)
-			if conf.Options.IncrSyncBypassDocumentValidation {
-				opts = opts.SetBypassDocumentValidation(true)
+			if replaceMode {
+				opts := options.Replace().SetUpsert(true)
+				if conf.Options.IncrSyncBypassDocumentValidation {
+					opts = opts.SetBypassDocumentValidation(true)
+				}
+				res, err = collectionHandle.ReplaceOne(context.Background(), update.id, update.data, opts)
+			} else {
+				opts := options.Update().SetUpsert(true)
+				if conf.Options.IncrSyncBypassDocumentValidation {
+					opts = opts.SetBypassDocumentValidation(true)
+				}
+				res, err = collectionHandle.UpdateOne(context.Background(), update.id,
+					bson.D{{"$set", update.data}}, opts)
 			}
-			res, err := collectionHandle.UpdateOne(context.Background(), update.id,
-				bson.D{{"$set", update.data}}, opts)
 			if err != nil {
 				_ = LOG.Warn("upsert _id[%v] with data[%v] meets err[%v] res[%v], try to solve",
 					update.id, update.data, err, res)
@@ -134,15 +152,27 @@ func (sw *SingleWriter) doUpdateOnInsert(database, collection string, metadata b
 						res.MatchedCount, res.ModifiedCount, res.UpsertedCount, update.id, update.data)
 				}
 			}
+			resolved++
 		}
 	} else {
 		for i, update := range updates {
-			opts := options.Update().SetUpsert(false)
-			if conf.Options.IncrSyncBypassDocumentValidation {
-				opts = opts.SetBypassDocumentValidation(true)
+			var err error
+			var res *mongo.UpdateResult
+
+			if replaceMode {
+				opts := options.Replace().SetUpsert(false)
+				if conf.Options.IncrSyncBypassDocumentValidation {
+					opts = opts.SetBypassDocumentValidation(true)
+				}
+				res, err = collectionHandle.ReplaceOne(context.Background(), update.id, update.data, opts)
+			} else {
+				opts := options.Update().SetUpsert(false)
+				if conf.Options.IncrSyncBypassDocumentValidation {
+					opts = opts.SetBypassDocumentValidation(true)
+				}
+				res, err = collectionHandle.UpdateOne(context.Background(), update.id,
+					bson.D{{"$set", update.data}}, opts)
 			}
-			res, err := collectionHandle.UpdateOne(context.Background(), update.id,
-				bson.D{{"$set", update.data}}, opts)
 			if err != nil && utils.DuplicateKey(err) == false {
 				_ = LOG.Warn("update _id[%v] with data[%v] meets err[%v] res[%v], try to solve",
 					update.id, update.data, err, res)
@@ -162,8 +192,10 @@ func (sw *SingleWriter) doUpdateOnInsert(database, collection string, metadata b
 						res.MatchedCount, res.ModifiedCount, update.id, update.data)
 				}
 			}
+			resolved++
 		}
 	}
+	LOG.Info("Duplicate resolution done. mode[%s] upsert[%v] ns[%s.%s] resolved[%d]", mode, upsert, database, collection, resolved)
 
 	return nil
 }

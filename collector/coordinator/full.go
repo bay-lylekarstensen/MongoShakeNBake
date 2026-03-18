@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	nimo "github.com/gugemichael/nimo4go"
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,6 +12,7 @@ import (
 	conf "github.com/alibaba/MongoShake/v2/collector/configure"
 	"github.com/alibaba/MongoShake/v2/collector/docsyncer"
 	"github.com/alibaba/MongoShake/v2/collector/filter"
+	"github.com/alibaba/MongoShake/v2/collector/reconcile"
 	"github.com/alibaba/MongoShake/v2/collector/transform"
 	utils "github.com/alibaba/MongoShake/v2/common"
 	"github.com/alibaba/MongoShake/v2/sharding"
@@ -231,6 +233,49 @@ func (coordinator *ReplicationCoordinator) startDocumentReplication() error {
 		LOG.Info("try to set checkpoint with map[%v]", ckptMap)
 		if err := docsyncer.Checkpoint(ckptMap); err != nil {
 			return err
+		}
+	}
+
+	if conf.Options.FullSyncReconcileEnable {
+		nsPairs := make([]reconcile.NamespacePair, 0, len(nsSet))
+		for sourceNS := range nsSet {
+			nsPairs = append(nsPairs, reconcile.NamespacePair{
+				Source: sourceNS,
+				Target: utils.NewNS(trans.Transform(sourceNS.Str())),
+			})
+		}
+
+		sourceURLs := make([]string, 0, len(coordinator.RealSourceFullSync))
+		for _, src := range coordinator.RealSourceFullSync {
+			sourceURLs = append(sourceURLs, src.URL)
+		}
+
+		reconcileSvc := reconcile.NewService(reconcile.Options{
+			TargetURL:        toUrl,
+			SourceURLs:       sourceURLs,
+			Namespaces:       nsPairs,
+			TargetSSLRoot:    conf.Options.TunnelMongoSslRootCaFile,
+			SourceSSLRoot:    conf.Options.MongoSslRootCaFile,
+			ShadowDB:         conf.Options.FullSyncReconcileDb,
+			ShadowCollection: conf.Options.FullSyncReconcileCollection,
+			Interval:         time.Duration(conf.Options.FullSyncReconcileInterval) * time.Second,
+			DeleteBatchSize:  conf.Options.FullSyncReconcileDeleteBatchSize,
+			GraceRuns:        conf.Options.FullSyncReconcileGraceRuns,
+		})
+
+		if conf.Options.SyncMode == utils.VarSyncModeFull {
+			if err := reconcileSvc.RunOnce(); err != nil {
+				return fmt.Errorf("run full sync reconcile once failed: %v", err)
+			}
+			LOG.Info("full sync reconcile one-shot finished")
+		} else {
+			reconcileSvc.Start()
+			LOG.Info("full sync reconcile background worker started interval[%ds] grace_runs[%d] batch[%d] reconcile.db[%s] reconcile.collection[%s]",
+				conf.Options.FullSyncReconcileInterval,
+				conf.Options.FullSyncReconcileGraceRuns,
+				conf.Options.FullSyncReconcileDeleteBatchSize,
+				conf.Options.FullSyncReconcileDb,
+				conf.Options.FullSyncReconcileCollection)
 		}
 	}
 

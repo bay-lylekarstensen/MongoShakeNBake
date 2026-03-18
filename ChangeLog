@@ -1,3 +1,28 @@
+2026-03-18 Back-At-You-Inc.
+	* FEATURE: add container entrypoint script `docker-entrypoint.sh`.
+	* FEATURE: Docker runtime supports config selection via `MSB_CONF`.
+	* FEATURE: add Atlas-oriented sample config `conf/collector-atlas.conf` with env-driven source/target/checkpoint settings.
+	* FEATURE: add duplicate-key handling modes (`update|replace`) for `full_sync.executor.insert_on_dup_update_mode` and `incr_sync.executor.insert_on_dup_update_mode`.
+	* FEATURE: add full-sync reconciliation worker (`full_sync.reconcile.*`) for eventual delete parity without dropping destination collections.
+	* IMPROVE: `MSB_CONF` filename mode resolves to `/app/conf/<name>`.
+	* IMPROVE: `MSB_CONF` path mode uses provided value as-is.
+	* IMPROVE: Docker image includes `/app/conf` config files in runtime stage.
+	* IMPROVE: add reconcile lifecycle logs (run start/done and startup mode details for one-shot/background execution).
+	* IMPROVE: full-sync duplicate fallback logs changed to concise summary with attempted/inserted/duplicates counters.
+	* IMPROVE: full-sync duplicate completion logs changed to explicit replaced counter format:
+		`Full sync duplicate resolution mode[replace] ns[{db.collection}] attempted[N] inserted[M] replaced[R] done`.
+	* FEATURE: add environment variable expansion (`$VAR`/`${VAR}`) and `.env` autoload for config values.
+	* IMPROVE: add `.env-example` template for container/local environment variable setup.
+	* IMPROVE: update `.gitignore` to exclude `.env*`, generated staged conf files, and diagnostic output.
+
+2026-03-12 Back-At-You-Inc. (fork baseline)
+	* BUGFIX: fix configuration handling for `mongodb+srv://` URLs.
+	* FEATURE: add `-check-config` preflight mode for collector.
+	* IMPROVE: update README with detailed fork-specific behavior and usage guidance.
+
+2025-12-18 Alibaba Cloud.
+	* TOOL: add pre-split tool (preview version).
+
 2025-12-17 Alibaba Cloud.
     * version: 2.8.7
     * FEATURE: add new option incr_sync.executor.bypass_document_validation
@@ -17,8 +42,6 @@
     * IMPROVE: #923, add full_sync.reader.split_max_chunk_size in conf with default 1024MB
     * IMPROVE: #933, Filter support config.system.preimages
     * BUGFIX: #897, time-series collections could not use hint (not done)
-    * TOOL: add pre-split tool (preview version)
-
 2025-08-11  Alibaba Cloud.
     * version: 2.8.6
     * BUGFIX: #894, support filter txn oplog with config.system.sessions
@@ -237,7 +260,7 @@
 	* IMPROVE: when meets DDL in sharding, do not crash when fetch_method is
 	change_stream.
 	* IMPROVE: when fetch_method is change_stream, do not set worker thread
-	to MongoD number when source side is sharding. 
+	to MongoD number when source side is sharding.
 
 2020-08-06 Alibaba Cloud.
 	* version: 2.4.9
@@ -474,13 +497,13 @@
 	* version: 1.2.0
 	* Feature: Use general write instead of op_command. When the version is
 	greater than or equal to 3.2, the bulk writer is used for batch writing,
-	otherwise the single writer is used for single writing.	
+	otherwise the single writer is used for single writing.
 
 2018-07-18 Alibaba Cloud.
 	* version: 1.0.0
 	* BUG FIX: upsert/remove error when old value isn't exist.
 	* BUG FIX: connect to Alibaba Cloud MongoDB instance without permission.
 	* BUG FIX: some logs can't be print out when crash.
-	
+
 2018-06-28 Alibaba Cloud.
 	* mongo-shake: initial release.

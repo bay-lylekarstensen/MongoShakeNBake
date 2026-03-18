@@ -191,6 +191,37 @@ func checkDefaultValue() error {
 	if conf.Options.FullSyncReaderOplogStoreDiskMaxSize <= 0 {
 		conf.Options.FullSyncReaderOplogStoreDiskMaxSize = 256000
 	}
+	if conf.Options.FullSyncExecutorInsertOnDupUpdateMode == "" {
+		conf.Options.FullSyncExecutorInsertOnDupUpdateMode = utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+	} else if conf.Options.FullSyncExecutorInsertOnDupUpdateMode != utils.VarSyncExecutorInsertOnDupUpdateModeUpdate &&
+		conf.Options.FullSyncExecutorInsertOnDupUpdateMode != utils.VarSyncExecutorInsertOnDupUpdateModeReplace {
+		return fmt.Errorf("full_sync.executor.insert_on_dup_update_mode should in {update, replace}")
+	}
+	if conf.Options.FullSyncReconcileInterval <= 0 {
+		conf.Options.FullSyncReconcileInterval = 3600
+	}
+	if conf.Options.FullSyncReconcileDeleteBatchSize <= 0 {
+		conf.Options.FullSyncReconcileDeleteBatchSize = 1000
+	}
+	if conf.Options.FullSyncReconcileGraceRuns <= 0 {
+		conf.Options.FullSyncReconcileGraceRuns = 2
+	}
+	if conf.Options.FullSyncReconcileDb == "" && conf.Options.FullSyncReconcileShadowDb != "" {
+		conf.Options.FullSyncReconcileDb = conf.Options.FullSyncReconcileShadowDb
+	}
+	if conf.Options.FullSyncReconcileCollection == "" && conf.Options.FullSyncReconcileShadowCollection != "" {
+		conf.Options.FullSyncReconcileCollection = conf.Options.FullSyncReconcileShadowCollection
+	}
+	if conf.Options.FullSyncReconcileDb == "" {
+		conf.Options.FullSyncReconcileDb = "mongoshake_reconcile"
+	}
+	if conf.Options.FullSyncReconcileCollection == "" {
+		conf.Options.FullSyncReconcileCollection = "state"
+	}
+
+	// keep deprecated alias fields in sync for compatibility with existing call-sites.
+	conf.Options.FullSyncReconcileShadowDb = conf.Options.FullSyncReconcileDb
+	conf.Options.FullSyncReconcileShadowCollection = conf.Options.FullSyncReconcileCollection
 
 	// 3. incr sync
 	if conf.Options.IncrSyncMongoFetchMethod == "" {
@@ -278,6 +309,12 @@ func checkDefaultValue() error {
 		conf.Options.IncrSyncConflictWriteTo != utils.VarIncrSyncConflictWriteToDb &&
 		conf.Options.IncrSyncConflictWriteTo != utils.VarIncrSyncConflictWriteToSdk {
 		return fmt.Errorf("incr_sync.conflict_write_to in {none, db, sdk}")
+	}
+	if conf.Options.IncrSyncExecutorInsertOnDupUpdateMode == "" {
+		conf.Options.IncrSyncExecutorInsertOnDupUpdateMode = utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+	} else if conf.Options.IncrSyncExecutorInsertOnDupUpdateMode != utils.VarSyncExecutorInsertOnDupUpdateModeUpdate &&
+		conf.Options.IncrSyncExecutorInsertOnDupUpdateMode != utils.VarSyncExecutorInsertOnDupUpdateModeReplace {
+		return fmt.Errorf("incr_sync.executor.insert_on_dup_update_mode should in {update, replace}")
 	}
 	if conf.Options.IncrSyncReaderBufferTime <= 0 {
 		conf.Options.IncrSyncReaderBufferTime = 1

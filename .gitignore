@@ -1,3 +1,5 @@
+.env
+.env.*
 pkg
 .gopath
 .idea
@@ -25,6 +27,8 @@ data
 bin/
 /cmd/collector/collector
 /cmd/receiver/receiver
-conf/
+conf/*.*.conf
 common/123.pid
 logs/
+
+diagnostic/

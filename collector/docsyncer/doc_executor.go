@@ -227,16 +227,20 @@ func (exec *DocExecutor) doSync(docs []*bson.Raw) error {
 	if err != nil {
 		bulkErr, ok := err.(mongo.BulkWriteException)
 		if !ok {
-			_ = LOG.Warn("insert docs with length[%v] into ns[%v] of dest mongo failed[type:%T err:%v] res[%v]",
+			return fmt.Errorf("insert docs with length[%v] into ns[%v] of dest mongo failed[type:%T err:%v] res[%v]",
 				len(models), ns, err, err, res)
-		} else {
-			_ = LOG.Warn("insert docs with length[%v] into ns[%v] of dest mongo failed[%v] res[%v]",
-				len(models), ns, bulkErr, res)
+		}
+
+		mode := utils.VarSyncExecutorInsertOnDupUpdateModeUpdate
+		if conf.Options.FullSyncExecutorInsertOnDupUpdateMode == utils.VarSyncExecutorInsertOnDupUpdateModeReplace {
+			mode = utils.VarSyncExecutorInsertOnDupUpdateModeReplace
 		}
 
 		var updateModels []mongo.WriteModel
+		duplicateCount := 0
 		for _, wError := range bulkErr.WriteErrors {
 			if utils.DuplicateKey(wError) {
+				duplicateCount++
 				if !conf.Options.FullSyncExecutorInsertOnDupUpdate {
 					return fmt.Errorf("duplicate key error[%v], you can clean the document on the target mongodb, "+
 						"or enable %v to solve, but full-sync stage needs restart",
@@ -258,12 +262,22 @@ func (exec *DocExecutor) doSync(docs []*bson.Raw) error {
 				if updateFilterBool == false {
 					return fmt.Errorf("duplicate key error[%v], can't get _id from document", wError)
 				}
-				updateModels = append(updateModels, mongo.NewUpdateOneModel().
-					SetFilter(updateFilter).SetUpdate(bson.D{{"$set", dupDocument}}))
+
+				if conf.Options.FullSyncExecutorInsertOnDupUpdateMode == utils.VarSyncExecutorInsertOnDupUpdateModeReplace {
+					updateModels = append(updateModels, mongo.NewReplaceOneModel().
+						SetFilter(updateFilter).SetReplacement(docData))
+				} else {
+					updateModels = append(updateModels, mongo.NewUpdateOneModel().
+						SetFilter(updateFilter).SetUpdate(bson.D{{"$set", docData}}))
+				}
 			} else {
 				return fmt.Errorf("bulk run failed[%v]", wError)
 			}
 		}
+
+		insertedCount := len(models) - duplicateCount
+		LOG.Warn("Full sync insert encountered duplicate keys and will resolve via mode[%s]. ns[{%s.%s}] attempted[%d] inserted[%d] duplicates[%d]",
+			mode, ns.Database, ns.Collection, len(models), insertedCount, duplicateCount)
 
 		if len(updateModels) != 0 {
 			opts := options.BulkWrite().SetOrdered(false)
@@ -271,8 +285,8 @@ func (exec *DocExecutor) doSync(docs []*bson.Raw) error {
 			if err != nil {
 				return fmt.Errorf("bulk run updateForInsert failed[%v]", err)
 			}
-			LOG.Debug("updateForInsert succeed, updateModels.len:%d updateModules[0]:%v",
-				len(updateModels), updateModels[0])
+			LOG.Info("Full sync duplicate resolution mode[%s] ns[{%s.%s}] attempted[%d] inserted[%d] replaced[%d] done",
+				mode, ns.Database, ns.Collection, len(models), insertedCount, len(updateModels))
 		} else {
 			return fmt.Errorf("bulk run failed[%v]", err)
 		}

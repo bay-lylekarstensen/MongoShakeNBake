@@ -58,6 +58,10 @@ const (
 	VarIncrSyncConflictWriteToDb   = "db"
 	VarIncrSyncConflictWriteToSdk  = "sdk"
 
+	// *_sync.executor.insert_on_dup_update_mode
+	VarSyncExecutorInsertOnDupUpdateModeUpdate  = "update"
+	VarSyncExecutorInsertOnDupUpdateModeReplace = "replace"
+
 	// checkpoint.storage.db
 	VarCheckpointStorageDbReplicaDefault  = "mongoshake"
 	VarCheckpointStorageDbShardingDefault = "admin"
