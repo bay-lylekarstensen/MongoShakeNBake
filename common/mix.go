@@ -162,8 +162,8 @@ func WritePidById(dir, id string) bool {
 }
 
 func Welcome() {
-	startMsg := "if you have any problem, please visit https://github.com/alibaba/MongoShake/wiki/FAQ"
-	_ = LOG.Warn(fmt.Sprintf("\nMongoShake starting\n%s\n", startMsg))
+	startMsg := "if you have any problem, please visit https://github.com/back-at-you-inc/MongoShakeNBake"
+	LOG.Info(fmt.Sprintf("MongoShakeNBake starting. %s", startMsg))
 }
 
 func Goodbye() {

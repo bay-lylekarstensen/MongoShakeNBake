@@ -129,7 +129,7 @@ func (coordinator *ReplicationCoordinator) sanitizeMongoDB() error {
 			conf.Options.MongoSslRootCaFile); conn == nil || !conn.IsGood() || err != nil {
 
 			_ = LOG.Critical("Connect mongo server error. %v, url : %s. "+
-				"See https://github.com/alibaba/MongoShake/wiki/FAQ"+
+				"See https://github.com/back-at-you-inc/MongoShakeNBake/issues"+
 				"#q-how-to-solve-the-oplog-tailer-initialize-failed-no-reachable-servers-error", err, src.URL)
 			return err
 		}
@@ -143,7 +143,7 @@ func (coordinator *ReplicationCoordinator) sanitizeMongoDB() error {
 			_ = LOG.Critical("There has no oplog collection in mongo db server")
 			conn.Close()
 			return errors.New("no oplog ns in mongo. " +
-				"See https://github.com/alibaba/MongoShake/wiki/FAQ" +
+				"See https://github.com/back-at-you-inc/MongoShakeNBake/issues" +
 				"#q-how-to-solve-the-oplog-tailer-initialize-failed-no-oplog-ns-in-mongo-error")
 		}
 
